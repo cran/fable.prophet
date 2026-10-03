@@ -1,5 +1,5 @@
 Package: fable.prophet
-Version: 0.1.0
+Version: 0.1.1
 Title: Prophet Modelling Interface for 'fable'
 Description: Allows prophet models from the 'prophet' package to be used in a tidy workflow with the modelling interface of 'fabletools'. This extends 'prophet' to provide enhanced model specification and management, performance evaluation methods, and model combination tools.
 Authors@R: c(
@@ -13,18 +13,17 @@ Suggests: tsibbledata, testthat, ggplot2, covr, knitr, rmarkdown
 ByteCompile: true
 License: GPL-3
 Encoding: UTF-8
-LazyData: true
-RoxygenNote: 7.1.1
 Language: en-GB
 URL: https://pkg.mitchelloharawild.com/fable.prophet/
 BugReports: https://github.com/mitchelloharawild/fable.prophet/issues
 VignetteBuilder: knitr
+Config/roxygen2/version: 8.0.0
 NeedsCompilation: no
-Packaged: 2020-08-13 02:30:58 UTC; mitchell
+Packaged: 2026-10-03 01:37:40 UTC; mitchell
 Author: Mitchell O'Hara-Wild [aut, cre],
   Sean Taylor [ctb] (Prophet library,
     https://facebook.github.io/prophet/),
   Ben Letham [ctb] (Prophet library, https://facebook.github.io/prophet/)
 Maintainer: Mitchell O'Hara-Wild <mail@mitchelloharawild.com>
 Repository: CRAN
-Date/Publication: 2020-08-20 09:30:03 UTC
+Date/Publication: 2026-10-03 03:00:08 UTC
