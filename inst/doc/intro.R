@@ -78,3 +78,27 @@ fc %>%
 ## ----train-accuracy-----------------------------------------------------------
 accuracy(fit)
 
+## ----cv, eval = FALSE---------------------------------------------------------
+# lax_passengers %>%
+#   stretch_tsibble(.init = 48, .step = 12) %>%
+#   model(prophet(passengers ~ season("year", type = "multiplicative"))) %>%
+#   forecast(h = "1 year") %>%
+#   accuracy(lax_passengers)
+
+## ----nondaily, eval = FALSE---------------------------------------------------
+# # Quarterly data: four observations per year
+# prophet(y ~ season(period = "year", order = 2))
+# 
+# # Monthly data
+# prophet(y ~ season(period = "year", order = 6))
+# 
+# # Equivalent, using the number of observations in each period
+# prophet(y ~ season(period = 12, order = 6, name = "year"))
+
+## ----times--------------------------------------------------------------------
+fit %>%
+  forecast(h = "3 years", times = 100)
+
+## ----extra, eval = FALSE------------------------------------------------------
+# model(data, prophet(y ~ season("year"), algorithm = "Newton"))
+

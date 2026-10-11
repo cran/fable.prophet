@@ -9,8 +9,12 @@ prophet(formula, ...)
 \arguments{
 \item{formula}{A symbolic description of the model to be fitted of class \code{formula}.}
 
-\item{...}{Additional arguments passed to the \code{optimizing} or
-\code{sampling} functions in Stan.}
+\item{...}{Additional arguments for estimating the model. These are
+\code{mcmc.samples} and \code{backend} (described below), with any others passed on to
+\code{\link[prophet:fit.prophet]{prophet::fit.prophet()}} and then to the Stan algorithm (for example
+\code{algorithm}, \code{iter} or \code{init} for optimisation, or \code{control} when
+\code{mcmc.samples > 0}), for example
+\code{prophet(y ~ season("year"), algorithm = "Newton")}.}
 }
 \description{
 Prepares a prophet model specification for use within the \code{fable} package.
@@ -27,19 +31,36 @@ regressors. These can be specified using the 'specials' functions detailed
 below. The introduction vignette provides more details on how to model data
 using this interface to prophet: \code{vignette("intro", package="fable.prophet")}.
 }
+\section{Estimation}{
+
+By default the model is estimated by maximum a posteriori (MAP) optimisation.
+Two arguments of \code{\link[prophet:prophet]{prophet::prophet()}} can be given in \code{...} of \code{prophet()}:
+\itemize{
+\item \code{mcmc.samples}: If greater than 0, the model is estimated using this
+many MCMC (Hamiltonian Monte Carlo) iterations, which is slower. Parameters
+are then summarised by their posterior means in \code{\link[=tidy.fbl_prophet]{tidy()}}
+and \code{\link[=glance.fbl_prophet]{glance()}}, and forecast sample paths include
+parameter uncertainty.
+\item \code{backend}: The Stan backend, either \code{"rstan"} or \code{"cmdstanr"} (which
+requires the \pkg{cmdstanr} package). If \code{NULL} (the default), the backend
+is chosen by \code{\link[prophet:prophet]{prophet::prophet()}}, using \code{"rstan"} unless the
+environment variable \code{R_STAN_BACKEND} is set to \code{"CMDSTANR"}.
+}
+}
+
 \section{Specials}{
 
 
 \subsection{growth}{
 The \code{growth} special is used to specify the trend parameters.
 \preformatted{
-growth(type = c("linear", "logistic"), capacity = NULL, floor = NULL,
+growth(type = c("linear", "logistic", "flat"), capacity = NULL, floor = NULL,
        changepoints = NULL, n_changepoints = 25, changepoint_range = 0.8,
        changepoint_prior_scale = 0.05)
 }
 
 \tabular{ll}{
-\code{type}                    \tab The type of trend (linear or logistic).\cr
+\code{type}                    \tab The type of trend (linear, logistic or flat). A flat trend is a constant level with no changepoints.\cr
 \code{capacity}                \tab The carrying capacity for when \code{type} is "logistic".\cr
 \code{floor}                   \tab The saturating minimum for when \code{type} is "logistic".\cr
 \code{changepoints}            \tab A vector of dates/times for changepoints. If \code{NULL}, changepoints are automatically selected.\cr
@@ -56,7 +77,7 @@ The \code{season} special is used to specify a seasonal component. This special 
 
 \preformatted{
 season(period = NULL, order = NULL, prior_scale = 10,
-       type = c("additive", "multiplicative"), name = NULL)
+       type = c("additive", "multiplicative"), name = NULL, condition = NULL)
 }
 
 \tabular{ll}{
@@ -65,18 +86,20 @@ season(period = NULL, order = NULL, prior_scale = 10,
 \code{prior_scale} \tab Used to control the amount of regularisation applied. Reducing this will dampen the seasonal effect.\cr
 \code{type}        \tab The nature of the seasonality. If "additive", the variability in the seasonal pattern is fixed. If "multiplicative", the seasonal pattern varies proportionally to the level of the series.\cr
 \code{name}        \tab The name of the seasonal term (allowing you to name an annual pattern as 'annual' instead of 'year' or \code{365.25} for example).\cr
+\code{condition}   \tab A bare column name of a logical variable, for conditional seasonality (see \code{\link[prophet:add_seasonality]{prophet::add_seasonality()}}). The seasonality is only applied when the condition is \code{TRUE}, and the column must be present (without missing values) in the data and in \code{new_data} when forecasting.\cr
 }
 }
 
 \subsection{holiday}{
-The \code{holiday} special is used to specify a \code{tsibble} containing holidays for the model.
+The \code{holiday} special is used to specify a \code{tsibble} containing holidays for the model, and/or a country whose built-in holidays are included.
 \preformatted{
-holiday(holidays = NULL, prior_scale = 10L)
+holiday(holidays = NULL, prior_scale = 10L, country = NULL)
 }
 
 \tabular{ll}{
 \code{holidays}    \tab A \href{https://tsibble.tidyverts.org/}{\code{tsibble}} containing a set of holiday events. The event name is given in the 'holiday' column, and the event date is given via the index. Additionally, "lower_window" and "upper_window" columns can be used to include days before and after the holiday.\cr
 \code{prior_scale} \tab Used to control the amount of regularisation applied. Reducing this will dampen the holiday effect.\cr
+\code{country}     \tab A country name or code (e.g. "AU") for which to include prophet's built-in holidays, see \code{\link[prophet:add_country_holidays]{prophet::add_country_holidays()}}. Can be used with or without \code{holidays}.\cr
 }
 }
 
@@ -94,6 +117,52 @@ xreg(..., prior_scale = NULL, standardize = "auto", type = NULL)
 \code{type}        \tab Does the effect of the regressor vary proportionally to the level of the series? If so, "multiplicative" is best. Otherwise, use "additive"\cr
 }
 }
+}
+
+\section{Non-daily data}{
+
+A model without any terms (\code{prophet(y)}, a bare response with no right hand
+side) enables prophet's yearly, weekly and daily seasonalities, as in
+\code{\link[prophet:prophet]{prophet::prophet()}}. Unlike prophet's default (\code{"auto"}), these are
+switched on regardless of the data's frequency or length, so for monthly or
+quarterly data (or any data coarser than daily) the weekly and daily
+seasonal terms are not meaningful and \code{prophet(y)} is not recommended.
+Instead, specify the seasonality explicitly with \code{season()}. Any formula
+(such as \code{prophet(y ~ season(...))}) uses only the seasonalities that you
+specify, with no automatic seasonalities. For example, use
+\code{prophet(y ~ season(period = "year", order = 4))} for quarterly data, or
+\code{order = 6} for monthly data. A \code{season()} period given as a string is
+converted using the data's interval, and a number is the count of
+observations per period. A Fourier \code{order} is required for periods other
+than a year, week or day.
+}
+
+\section{Performance and memory}{
+
+Fitting prophet models is relatively slow, and each forecast stores
+\code{times} simulated sample paths (see \code{\link[=forecast.fbl_prophet]{forecast.fbl_prophet()}}). When
+modelling many series, consider the following:
+\itemize{
+\item Reduce \code{times} in \code{forecast()} (for example \code{times = 100}), or use
+\code{times = 0} for point forecasts only. This reduces time and the size of the
+forecast object.
+\item Fitted models drop the raw Stan output, but keep the data used to fit
+the model, so very large mables can be made smaller by
+forecasting then discarding the models.
+\item Models are independent, so series can be fit and forecast in
+parallel using the \pkg{future} package, for example with
+\code{future::plan(future::multisession)}.
+\item MCMC estimation (\code{mcmc.samples}) is much slower than the default
+optimisation.
+}
+}
+
+\section{Model evaluation}{
+
+Prophet's \code{cross_validation()} and \code{performance_metrics()} are not needed
+for this interface. Use \code{\link[tsibble:stretch_tsibble]{tsibble::stretch_tsibble()}} to create
+cross-validation folds, fit models on them and
+\code{\link[fabletools:accuracy]{fabletools::accuracy()}} to evaluate the forecasts.
 }
 
 \examples{
